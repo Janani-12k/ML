@@ -1,82 +1,66 @@
-import numpy as np
-
 class CandidateElimination:
-    def __init__(self, num_attributes):
-        self.num_attributes = num_attributes
-        self.G = self.initialize_G(num_attributes)
-        self.S = self.initialize_S(num_attributes)
+    def __init__(self, num_features):
+        self.num_features = num_features
+        self.S = [{('?') for _ in range(num_features)}]  # Start with the most general hypothesis
+        self.G = [{('0') for _ in range(num_features)}]  # Start with the most specific hypothesis
 
-    def initialize_G(self, num_attributes):
-        G = [(['?'] * num_attributes, ['?'] * num_attributes)]
-        return G
-
-    def initialize_S(self, num_attributes):
-        S = [(['0'] * num_attributes, ['0'] * num_attributes)]
-        return S
-
-    def fit(self, X):
-        for x, y in X:
-            if y == 'Y':
+    def fit(self, X, y):
+        for i in range(len(X)):
+            x = X[i]
+            if y[i] == 1:  # Positive example
                 self.remove_inconsistent_G(x)
                 self.generalize_S(x)
-            else:
+            else:  # Negative example
                 self.remove_inconsistent_S(x)
                 self.specialize_G(x)
 
     def remove_inconsistent_G(self, x):
-        self.G = [g for g in self.G if not self.is_more_general(x, g[0])]
+        self.G = [g for g in self.G if not any([self.is_consistent(x, h) for h in g])]
 
-    def is_more_general(self, x, h):
-        for i in range(len(x)):
-            if h[i] != '?' and x[i] != h[i]:
-                return False
-        return True
+    def is_consistent(self, x, h):
+        return all([h[i] == '?' or h[i] == x[i] for i in range(self.num_features)])
 
     def generalize_S(self, x):
         S_new = []
         for s in self.S:
-            for i in range(len(s[0])):
-                if s[0][i] == '0' and x[i] != '0':
-                    s_new = (s[0][:], s[1][:])
-                    s_new[0][i] = x[i]
-                    S_new.append(s_new)
+            for i in range(self.num_features):
+                if s[i] == '?':
+                    continue
+                if s[i] != x[i]:
+                    s_new = list(s)
+                    s_new[i] = '?'
+                    S_new.append(set(s_new))
+            S_new.append(s)
         self.S = S_new
 
     def remove_inconsistent_S(self, x):
-        self.S = [s for s in self.S if not self.is_more_specific(x, s[0])]
-
-    def is_more_specific(self, x, h):
-        for i in range(len(x)):
-            if h[i] != '?' and x[i] != h[i]:
-                return False
-            if h[i] == '0' and x[i] != '0':
-                return False
-        return True
+        self.S = [s for s in self.S if self.is_consistent(x, s)]
 
     def specialize_G(self, x):
         G_new = []
         for g in self.G:
-            for i in range(len(g[0])):
-                if g[0][i] == '?' and x[i] != '0':
-                    g_new = (g[0][:], g[1][:])
-                    g_new[0][i] = x[i]
-                    g_new[1][i] = '0'
-                    G_new.append(g_new)
-        self.G += G_new
+            for i in range(self.num_features):
+                if g[i] != '0' and g[i] != x[i]:
+                    g_new = list(g)
+                    g_new[i] = '0'
+                    G_new.append(set(g_new))
+            G_new.append(g)
+        self.G = G_new
 
     def get_hypotheses(self):
         return self.S, self.G
 
 # Example usage
 X = [
-    (['Sunny', 'Warm', 'Normal', 'Strong', 'Warm', 'Same'], 'Y'),
-    (['Sunny', 'Warm', 'High', 'Strong', 'Warm', 'Same'], 'Y'),
-    (['Rainy', 'Cold', 'High', 'Strong', 'Warm', 'Change'], 'N'),
-    (['Sunny', 'Warm', 'High', 'Strong', 'Cool', 'Change'], 'Y'),
+    ('Sunny', 'Warm', 'Normal', 'Strong', 'Warm', 'Same'),
+    ('Sunny', 'Warm', 'High', 'Strong', 'Warm', 'Same'),
+    ('Rainy', 'Cold', 'High', 'Weak', 'Warm', 'Change'),
+    ('Sunny', 'Warm', 'High', 'Strong', 'Cool', 'Change')
 ]
+y = [1, 1, 0, 1]  # 1 for positive, 0 for negative
 
-ce = CandidateElimination(num_attributes=6)
-ce.fit(X)
+ce = CandidateElimination(num_features=len(X[0]))
+ce.fit(X, y)
 S_hypotheses, G_hypotheses = ce.get_hypotheses()
 
 print("Final S Hypotheses:")
