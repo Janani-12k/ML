@@ -1,46 +1,66 @@
-import numpy as np 
-import pandas as pd
+import numpy as np
 
-data = pd.read_csv('/content/ENJOYSPORT.csv')
-concepts = np.array(data.iloc[:,0:-1])
-print("\nInstances are:\n",concepts)
-target = np.array(data.iloc[:,-1])
-print("\nTarget Values are: ",target)
+class CandidateElimination:
+    def __init__(self, num_features):
+        self.num_features = num_features
+        self.S = [np.zeros(num_features, dtype=int)]
+        self.G = [np.ones(num_features, dtype=int)]
 
-def learn(concepts, target): 
-    specific_h = concepts[0].copy()
-    print("\nInitialization of specific_h and genearal_h")
-    print("\nSpecific Boundary: ", specific_h)
-    general_h = [["?" for i in range(len(specific_h))] for i in range(len(specific_h))]
-    print("\nGeneric Boundary: ",general_h)  
+    def fit(self, X, y):
+        for i in range(len(X)):
+            if y[i] == 1:  # Positive example
+                self.remove_inconsistent_G(X[i])
+                self.generalize_S(X[i])
+            else:  # Negative example
+                self.remove_inconsistent_S(X[i])
+                self.specialize_G(X[i])
 
-    for i, h in enumerate(concepts):
-        print("\nInstance", i+1 , "is ", h)
-        if target[i] == "yes":
-            print("Instance is Positive ")
-            for x in range(len(specific_h)): 
-                if h[x]!= specific_h[x]:                    
-                    specific_h[x] ='?'                     
-                    general_h[x][x] ='?'
-                   
-        if target[i] == "no":            
-            print("Instance is Negative ")
-            for x in range(len(specific_h)): 
-                if h[x]!= specific_h[x]:                    
-                    general_h[x][x] = specific_h[x]                
-                else:                    
-                    general_h[x][x] = '?'        
-        
-        print("Specific Bundary after ", i+1, "Instance is ", specific_h)         
-        print("Generic Boundary after ", i+1, "Instance is ", general_h)
-        print("\n")
+    def remove_inconsistent_G(self, x):
+        self.G = [g for g in self.G if np.all(g >= x)]
 
-    indices = [i for i, val in enumerate(general_h) if val == ['?', '?', '?', '?', '?', '?']]    
-    for i in indices:   
-        general_h.remove(['?', '?', '?', '?', '?', '?']) 
-    return specific_h, general_h 
+    def generalize_S(self, x):
+        S_new = []
+        for s in self.S:
+            for i in range(len(s)):
+                if s[i] != x[i]:
+                    s_new = np.copy(s)
+                    s_new[i] = -1  # -1 indicates a variable can take any value
+                    S_new.append(s_new)
+        self.S = S_new
 
-s_final, g_final = learn(concepts, target)
+    def remove_inconsistent_S(self, x):
+        self.S = [s for s in self.S if not np.all(s >= x)]
 
-print("Final Specific_h: ", s_final, sep="\n")
-print("Final General_h: ", g_final, sep="\n")
+    def specialize_G(self, x):
+        G_new = []
+        for g in self.G:
+            for i in range(len(g)):
+                if g[i] == 1 and x[i] != 1:
+                    g_new = np.copy(g)
+                    g_new[i] = 0
+                    G_new.append(g_new)
+        self.G = G_new
+
+    def get_hypotheses(self):
+        return self.S, self.G
+
+# Example usage
+X = np.array([
+    [1, 1, 0],
+    [1, 0, 1],
+    [0, 1, 0],
+    [0, 0, 1]
+])
+y = np.array([1, 0, 1, 0])  # 1 for positive, 0 for negative
+
+ce = CandidateElimination(num_features=X.shape[1])
+ce.fit(X, y)
+S_hypotheses, G_hypotheses = ce.get_hypotheses()
+
+print("Final S Hypotheses:")
+for s in S_hypotheses:
+    print(s)
+
+print("\nFinal G Hypotheses:")
+for g in G_hypotheses:
+    print(g)
